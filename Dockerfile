@@ -9,4 +9,4 @@ EXPOSE 7860
 ENV GRADIO_SERVER_NAME="0.0.0.0"
 
 # Run the new Web UI
-CMD ["python", "app.py"]
+CMD ["python", "inference.py"]
