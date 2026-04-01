@@ -1,0 +1,17 @@
+[project]
+name = "openenv-emailagent"
+version = "0.1.0"
+
+description = "Advanced Email Triage OpenEnv"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "openai",
+    "requests",
+    "tenacity"
+]
+[tool.setuptools]
+py-modules = ["baseline", "client", "env", "inference", "models", "server"]
