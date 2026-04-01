@@ -1,5 +1,5 @@
 import copy
-from models import Observation, Action, Reward
+from models import Observation, Action
 from openenv.core import Environment
 
 # --- 1. The Chaos Tier Dataset ---
@@ -42,9 +42,9 @@ class AdvancedEmailEnv(Environment):
         self.queue = copy.deepcopy(self.initial_emails)
         self.processed = {}
         self.done = len(self.queue) == 0
-        return self._make_obs("Environment initialized. Ready for triage.", 0.0)
+        # Reset ONLY returns the observation
+        return self._make_obs("Environment initialized. Ready for triage.")
 
-    # OpenEnv expects state to be a property!
     @property
     def state(self) -> dict:
         return {
@@ -53,26 +53,22 @@ class AdvancedEmailEnv(Environment):
             "done": self.done
         }
 
-    def _make_obs(self, feedback: str, reward_val: float) -> Observation:
+    def _make_obs(self, feedback: str) -> Observation:
         current = self.queue[0] if self.queue else None
-        obs = Observation(
+        return Observation(
             current_email=current,
             emails_remaining=len(self.queue),
             feedback=feedback
         )
-        # We attach reward and done directly to the observation object
-        # so the OpenEnv web server can find them!
-        obs.reward = reward_val
-        obs.done = self.done
-        return obs
 
-    def step(self, action: Action) -> Observation:
+    # Step returns the classic RL tuple: (Observation, float, bool, dict)
+    def step(self, action: Action) -> tuple[Observation, float, bool, dict]:
         if self.done:
-            return self._make_obs("Episode done.", 0.0)
+            return self._make_obs("Episode done."), 0.0, True, self.state
         
         current_email = self.queue[0]
         if action.email_id != current_email["id"]:
-            return self._make_obs("Fatal Error: Processed out of order.", -1.0)
+            return self._make_obs("Fatal Error: Processed out of order."), -1.0, self.done, self.state
         
         truth = self.ground_truth[action.email_id]
         step_reward = 0.0
@@ -101,8 +97,7 @@ class AdvancedEmailEnv(Environment):
         self.queue.pop(0)
         self.done = len(self.queue) == 0
         
-        # Notice we only return the Observation now, no longer a tuple!
-        return self._make_obs(" | ".join(feedback_notes), round(step_reward, 2))
+        return self._make_obs(" | ".join(feedback_notes)), round(step_reward, 2), self.done, self.state
 
 # --- 3. Server Binding ---
 from openenv.core.env_server import create_web_interface_app
