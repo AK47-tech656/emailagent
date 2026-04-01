@@ -1,5 +1,6 @@
 import copy
 from models import Observation, Action, Reward
+from openenv.core import Environment
 
 # --- 1. The Chaos Tier Dataset ---
 TEST_EMAILS = [
@@ -23,7 +24,6 @@ TEST_EMAILS = [
     }
 ]
 
-# The Answer Key (Ground Truth)
 ANSWER_KEY = {
     "email_003": {"department": "spam", "priority": "low"},
     "email_004": {"department": "billing", "priority": "critical"}, 
@@ -31,8 +31,9 @@ ANSWER_KEY = {
 }
 
 # --- 2. Your Advanced Environment ---
-class AdvancedEmailEnv:
+class AdvancedEmailEnv(Environment):
     def __init__(self, emails=TEST_EMAILS, ground_truth=ANSWER_KEY):
+        super().__init__() 
         self.initial_emails = copy.deepcopy(emails)
         self.ground_truth = ground_truth
         self.reset()
@@ -41,8 +42,10 @@ class AdvancedEmailEnv:
         self.queue = copy.deepcopy(self.initial_emails)
         self.processed = {}
         self.done = len(self.queue) == 0
-        return self._make_obs("Environment initialized. Ready for triage.")
+        return self._make_obs("Environment initialized. Ready for triage.", 0.0)
 
+    # OpenEnv expects state to be a property!
+    @property
     def state(self) -> dict:
         return {
             "queue_length": len(self.queue),
@@ -50,21 +53,26 @@ class AdvancedEmailEnv:
             "done": self.done
         }
 
-    def _make_obs(self, feedback: str) -> Observation:
+    def _make_obs(self, feedback: str, reward_val: float) -> Observation:
         current = self.queue[0] if self.queue else None
-        return Observation(
+        obs = Observation(
             current_email=current,
             emails_remaining=len(self.queue),
             feedback=feedback
         )
+        # We attach reward and done directly to the observation object
+        # so the OpenEnv web server can find them!
+        obs.reward = reward_val
+        obs.done = self.done
+        return obs
 
-    def step(self, action: Action) -> tuple[Observation, Reward, bool, dict]:
+    def step(self, action: Action) -> Observation:
         if self.done:
-            return self._make_obs("Episode done."), Reward(value=0.0, reason="Done"), True, self.state()
+            return self._make_obs("Episode done.", 0.0)
         
         current_email = self.queue[0]
         if action.email_id != current_email["id"]:
-            return self._make_obs("Fatal Error: Processed out of order."), Reward(value=-1.0, reason="ID mismatch"), self.done, self.state()
+            return self._make_obs("Fatal Error: Processed out of order.", -1.0)
         
         truth = self.ground_truth[action.email_id]
         step_reward = 0.0
@@ -93,9 +101,9 @@ class AdvancedEmailEnv:
         self.queue.pop(0)
         self.done = len(self.queue) == 0
         
-        reward = Reward(value=round(step_reward, 2), reason=" | ".join(feedback_notes))
-        return self._make_obs("Email processed."), reward, self.done, self.state()
+        # Notice we only return the Observation now, no longer a tuple!
+        return self._make_obs(" | ".join(feedback_notes), round(step_reward, 2))
 
-# --- 3. Server Binding (Required for Grader Bot) ---
-from openenv import make_env
-app = make_env(AdvancedEmailEnv)
+# --- 3. Server Binding ---
+from openenv.core.env_server import create_web_interface_app
+app = create_web_interface_app(AdvancedEmailEnv, Action, Observation)
