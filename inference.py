@@ -74,6 +74,8 @@ def main():
         step += 1
         
     print("\n✅ Environment complete! No more emails.")
+import time
+time.sleep(30)
 
 if __name__ == "__main__":
     main()
