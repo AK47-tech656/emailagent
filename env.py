@@ -1,5 +1,4 @@
 import copy
-
 from models import Observation, Action, Reward
 
 # --- 1. The Chaos Tier Dataset ---
@@ -30,7 +29,6 @@ ANSWER_KEY = {
     "email_004": {"department": "billing", "priority": "critical"}, 
     "email_005": {"department": "support", "priority": "low"}
 }
-
 
 # --- 2. Your Advanced Environment ---
 class AdvancedEmailEnv:
@@ -63,15 +61,15 @@ class AdvancedEmailEnv:
     def step(self, action: Action) -> tuple[Observation, Reward, bool, dict]:
         if self.done:
             return self._make_obs("Episode done."), Reward(value=0.0, reason="Done"), True, self.state()
-
+        
         current_email = self.queue[0]
         if action.email_id != current_email["id"]:
             return self._make_obs("Fatal Error: Processed out of order."), Reward(value=-1.0, reason="ID mismatch"), self.done, self.state()
-
+        
         truth = self.ground_truth[action.email_id]
         step_reward = 0.0
         feedback_notes = []
-
+        
         # Dense Reward Shaping
         if action.department == truth["department"]:
             step_reward += 0.5
@@ -79,14 +77,14 @@ class AdvancedEmailEnv:
         else:
             step_reward -= 0.3
             feedback_notes.append(f"Wrong department (Expected {truth['department']}).")
-
+            
         if action.priority == truth["priority"]:
             step_reward += 0.4
             feedback_notes.append("Correct priority.")
         else:
             step_reward -= 0.2
             feedback_notes.append(f"Wrong priority (Expected {truth['priority']}).")
-
+            
         if len(action.chain_of_thought) > 10:
             step_reward += 0.1
             feedback_notes.append("Good reasoning provided.")
@@ -94,6 +92,10 @@ class AdvancedEmailEnv:
         self.processed[action.email_id] = action.model_dump()
         self.queue.pop(0)
         self.done = len(self.queue) == 0
-
+        
         reward = Reward(value=round(step_reward, 2), reason=" | ".join(feedback_notes))
         return self._make_obs("Email processed."), reward, self.done, self.state()
+
+# --- 3. Server Binding (Required for Grader Bot) ---
+from openenv import make_env
+app = make_env(AdvancedEmailEnv)
