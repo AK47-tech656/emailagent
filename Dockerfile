@@ -1,12 +1,11 @@
 FROM python:3.11
 WORKDIR /app
 COPY . .
-# Added gradio to the install list
-RUN pip install --no-cache-dir openai pydantic gradio
 
-# Expose the web port Hugging Face looks for
+# Install the OpenEnv package and the web server
+RUN pip install -e .
+RUN pip install uvicorn
+
+# Open the port and boot the ASGI app from env.py
 EXPOSE 7860
-ENV GRADIO_SERVER_NAME="0.0.0.0"
-
-# Run the new Web UI
-CMD ["python", "inference.py"]
+CMD ["uvicorn", "env:app", "--host", "0.0.0.0", "--port", "7860"]
